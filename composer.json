@@ -1,0 +1,33 @@
+{
+  "name": "aleblanc/php-sema",
+  "description": "An AST-based CFG for semantic analysis of PHP programs",
+  "minimum-stability": "stable",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Arnaud Le Blanc",
+      "email": "arnaud.lb@gmail.com"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "PhpSema\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "PhpSema\\Test\\": "test"
+    }
+  },
+  "require": {
+    "php": ">= 8.1",
+    "nikic/php-parser": "^4.13",
+    "clue/graph": "^0.9.3",
+    "graphp/graphviz": "^0.2.2"
+  },
+  "require-dev": {
+    "phpstan/phpstan": "^1.5",
+    "symfony/console": "^6.0",
+    "phpunit/phpunit": "^9.5"
+  }
+}
