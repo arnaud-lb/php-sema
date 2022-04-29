@@ -2,6 +2,7 @@
 
 namespace PhpSema\Visualization\AST;
 
+use PhpParser\Comment;
 use PhpParser\Node;
 use PhpParser\Node\Expr;
 use PhpParser\Node\Expr\Closure;
@@ -24,6 +25,7 @@ class StandardPrettyPrinter extends Standard
 {
     /** @var SplObjectStorage<Node,array{BBlock,int}> */
     private SplObjectStorage $seen;
+
 
     /** @param SplObjectStorage<Node,array{BBlock,int}>|null $seen */
     public function __construct(SplObjectStorage $seen = null)
@@ -51,6 +53,23 @@ class StandardPrettyPrinter extends Standard
         }
 
         return $p;
+    }
+
+    /** @param Comment[] $comments */
+    protected function pComments(array $comments): string {
+        $formattedComments = [];
+
+        foreach ($comments as $comment) {
+            $formattedComments[] = str_replace("\n", $this->nl, $comment->getReformattedText());
+        }
+
+        $comments = implode($this->nl, $formattedComments);
+
+        if (mb_strlen($comments) > 30) {
+            $comments = mb_substr($comments, 0, 30) . '... */';
+        }
+
+        return $comments;
     }
 
     public function pStmt_Phi(Phi $node): string

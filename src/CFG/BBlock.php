@@ -13,6 +13,7 @@ use PhpParser\Node\Stmt\Case_;
 use PhpParser\Node\Stmt\For_;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\If_;
+use PhpParser\Node\Stmt\Return_;
 use PhpParser\Node\Stmt\Switch_;
 use PhpParser\Node\Stmt\While_;
 
@@ -46,6 +47,18 @@ final class BBlock
     public function getStmts(): array
     {
         return $this->stmts;
+    }
+
+    /**
+     * @return array<Node>
+     */
+    public function getStmtsAndTerminator(): array
+    {
+        if ($this->terminator === null) {
+            return $this->stmts;
+        }
+
+        return [...$this->stmts, $this->terminator];
     }
 
     public function addStmt(Node $stmt): void

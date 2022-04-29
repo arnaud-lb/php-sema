@@ -45,6 +45,18 @@ final class SymTable
         return $this->nameToId[$name];
     }
 
+    public function getName(int $id): string
+    {
+        if (!isset($this->idToName[$id])) {
+            throw new \Exception(sprintf(
+                'Unknown var id: %d',
+                $id,
+            ));
+        }
+
+        return $this->idToName[$id];
+    }
+
     /** @return array<int,string> */
     public function getIdToNameMap(): array
     {

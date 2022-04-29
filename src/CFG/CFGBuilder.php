@@ -5,6 +5,7 @@ namespace PhpSema\CFG;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\BinaryOp\BooleanAnd;
 use PhpParser\Node\Expr\BinaryOp\BooleanOr;
 use PhpParser\Node\Expr\BinaryOp\LogicalAnd;
@@ -15,6 +16,7 @@ use PhpParser\Node\Expr\Match_;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\Ternary;
+use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Param;
 use PhpParser\Node\Scalar\LNumber;
@@ -41,6 +43,8 @@ use PhpParser\Node\Stmt\While_;
  */
 final class CFGBuilder
 {
+    public const FLAG_DONT_ADD_USES = 1 << 0;
+
     private CFG $cfg;
 
     /** @var BBlock[] */
@@ -77,7 +81,7 @@ final class CFGBuilder
         return $this->cfg;
     }
 
-    public function buildFunction(FunctionLike $node): CFG
+    public function buildFunction(FunctionLike $node, int $flags = 0): CFG
     {
         $entry = $this->cfg->getEntry();
         $successor = $this->cfg->getExit();
@@ -85,7 +89,7 @@ final class CFGBuilder
         $entry->setSuccessor($block);
 
         $block = $this->visitList($block, $successor, $node->getParams());
-        if ($node instanceof Closure) {
+        if ($node instanceof Closure && ($flags & self::FLAG_DONT_ADD_USES) === 0) {
             $block = $this->visitList($block, $successor, $node->uses);
         }
 
@@ -184,6 +188,9 @@ final class CFGBuilder
         }
         if ($node instanceof Closure) {
             return $this->visitClosure($block, $successor, $node);
+        }
+        if ($node instanceof ArrowFunction) {
+            return $this->visitArrowFunction($block, $successor, $node);
         }
         if ($node instanceof Function_) {
             return $this->visitFunction($block, $successor, $node);
@@ -286,6 +293,10 @@ final class CFGBuilder
         $block = $this->visit($block, $headBlock, $node->expr);
         $block->setSuccessor($headBlock);
 
+        if ($node->keyVar !== null) {
+            $headBlock = $this->visit($headBlock, $bodyBlock, $node->keyVar);
+        }
+        $headBlock = $this->visit($headBlock, $bodyBlock, $node->valueVar);
         $headBlock->setTerminator($node, $bodyBlock, $nextBlock);
 
         $this->visitList($bodyBlock, $headBlock, $node->stmts);
@@ -549,6 +560,31 @@ final class CFGBuilder
         return $block;
     }
 
+    public function visitArrowFunction(BBlock $block, BBlock $successor, ArrowFunction $node): BBlock
+    {
+        $builder = new CFGBuilder();
+        $cfg = $builder->buildFunction($node);
+        $paramNames = [];
+        foreach ($node->params as $param) {
+            if ($param->var instanceof Variable) {
+                assert(is_string($param->var->name));
+                $paramNames[] = $param->var->name;
+            }
+        }
+
+        foreach ($cfg->getBBlocks() as $fnBlock) {
+            foreach ($fnBlock->getStmts() as $stmt) {
+                if ($stmt instanceof Variable && !in_array($stmt->name, $paramNames, true)) {
+                    $block->addStmt($stmt);
+                }
+            }
+        }
+
+        $block->addStmt($node);
+
+        return $block;
+    }
+
     public function visitFunction(BBlock $block, BBlock $successor, Function_ $node): BBlock
     {
         $block->addStmt($node);
@@ -567,7 +603,6 @@ final class CFGBuilder
     {
         $confluenceBlock = $this->createBlock($successor);
         $this->visitShortcuttingOp($block, $confluenceBlock, $confluenceBlock, $node, null);
-        $block->addStmt($node);
 
         return $confluenceBlock;
     }

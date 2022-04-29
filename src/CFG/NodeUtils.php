@@ -5,20 +5,28 @@ namespace PhpSema\CFG;
 use PhpParser\Node;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr;
+use PhpParser\Node\Expr\Array_;
 use PhpParser\Node\Expr\ArrayDimFetch;
+use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Assign;
+use PhpParser\Node\Expr\AssignRef;
 use PhpParser\Node\Expr\Closure;
+use PhpParser\Node\Expr\ClosureUse;
 use PhpParser\Node\Expr\PostDec;
 use PhpParser\Node\Expr\PostInc;
 use PhpParser\Node\Expr\PreDec;
 use PhpParser\Node\Expr\PreInc;
 use PhpParser\Node\Expr\PropertyFetch;
+use PhpParser\Node\Expr\StaticPropertyFetch;
 use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\Param;
 use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\Foreach_;
 use PhpParser\Node\Stmt\Function_;
+use PhpParser\Node\Stmt\Global_;
+use PhpParser\Node\Stmt\Static_;
+use PhpParser\Node\Stmt\Unset_;
 use PhpSema\CFG\SSA\Node\Phi;
 
 /**
@@ -73,16 +81,30 @@ final class NodeUtils
     {
         return match (true) {
             $stmt instanceof Assign => self::lhsToVariables($stmt->var),
+            $stmt instanceof AssignRef => self::lhsToVariables($stmt->var),
             $stmt instanceof Phi => self::lhsToVariables($stmt->var),
             $stmt instanceof PreInc && $stmt->var instanceof Variable => [$stmt->var],
             $stmt instanceof PreDec && $stmt->var instanceof Variable => [$stmt->var],
             $stmt instanceof PostInc && $stmt->var instanceof Variable => [$stmt->var],
             $stmt instanceof PostDec && $stmt->var instanceof Variable => [$stmt->var],
             $stmt instanceof Param && $stmt->var instanceof Variable => [$stmt->var],
+            $stmt instanceof ClosureUse => [$stmt->var],
+            $stmt instanceof Static_ => array_map(
+                fn ($staticVar) => $staticVar->var,
+                $stmt->vars,
+            ),
+            $stmt instanceof Global_ => array_filter(
+                $stmt->vars,
+                fn ($expr) => $expr instanceof Variable,
+            ),
             $stmt instanceof Foreach_ => [
                 ...($stmt->keyVar !== null ? self::lhsToVariables($stmt->keyVar) : []),
                 ...self::lhsToVariables($stmt->valueVar),
             ],
+            $stmt instanceof Unset_ => array_filter(
+                $stmt->vars,
+                fn ($expr) => $expr instanceof Variable,
+            ),
             default => [],
         };
     }
@@ -98,7 +120,20 @@ final class NodeUtils
             $node instanceof Variable => [$node],
             $node instanceof PropertyFetch => [],
             $node instanceof ArrayDimFetch => [],
+            $node instanceof Array_ => self::lhsArrayToVariables($node),
+            $node instanceof StaticPropertyFetch => [],
             default => throw new \Exception(sprintf('TODO: %s', get_class($node))),
         };
+    }
+
+    /** @return iterable<Variable> */
+    private static function lhsArrayToVariables(Array_ $node): iterable
+    {
+        foreach ($node->items as $item) {
+            if ($item === null) {
+                continue;
+            }
+            yield from self::lhsToVariables($item->value);
+        }
     }
 }

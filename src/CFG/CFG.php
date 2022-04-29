@@ -2,6 +2,8 @@
 
 namespace PhpSema\CFG;
 
+use PhpParser\Node;
+
 /**
  * @author Arnaud Le Blanc <arnaud.lb@gmail.com>
  */
